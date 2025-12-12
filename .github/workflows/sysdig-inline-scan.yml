@@ -1,43 +1,18 @@
-name: Sysdig Inline Image Scan
+name: Sysdig Voting App Scan
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
-  build-and-scan:
+  scan-voting-app:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      #1 Checkout repo
+      - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-
-      ############################################################
-      # Download & install Sysdig CLI Scanner (reliable method)
-      ############################################################
-      
-      - name: Download Sysdig CLI Scanner
-        run: |
-          curl -LO "https://download.sysdig.com/scanning/bin/sysdig-cli-scanner/$(curl -L -s https://download.sysdig.com/scanning/sysdig-cli-scanner/latest_version.txt)/linux/amd64/sysdig-cli-scanner"
-          chmod +x sysdig-cli-scanner
-
-      - name: Verify Sysdig API token exists
-        run: |
-          if [ -z "${{ secrets.SYSDIG_SECURE_TOKEN }}" ]; then
-            echo "ERROR: Missing SYSDIG_SECURE_TOKEN secret"
-            exit 1
-          fi
-
-      ############################################################
-      # Build Docker images for vote, worker, result
-      ############################################################
-
+      #2 Build vote, worker, and result Docker images
       - name: Build vote image
         run: docker build -t vote-app:latest ./vote
 
@@ -47,43 +22,50 @@ jobs:
       - name: Build result image
         run: docker build -t result-app:latest ./result
 
-      ############################################################
-      # Scan Images with Sysdig CLI Scanner
-      ############################################################
-
+      #3 Scan vote image using Sysdig Scan Action
       - name: Scan vote image
-        run: |
-          ./sysdig-cli-scanner \
-            --apiurl https://secure.sysdig.com \
-            --token ${{ secrets.SYSDIG_SECURE_TOKEN }} \
-            --output vote-scan.json \
-            docker://vote-app:latest
-
-      - name: Scan worker image
-        run: |
-          ./sysdig-cli-scanner \
-            --apiurl https://secure.sysdig.com \
-            --token ${{ secrets.SYSDIG_SECURE_TOKEN }} \
-            --output worker-scan.json \
-            docker://worker-app:latest
-
-      - name: Scan result image
-        run: |
-          ./sysdig-cli-scanner \
-            --apiurl https://secure.sysdig.com \
-            --token ${{ secrets.SYSDIG_SECURE_TOKEN }} \
-            --output result-scan.json \
-            docker://result-app:latest
-
-      ############################################################
-      # Upload scan results as GitHub artifacts
-      ############################################################
-
-      - name: Upload Sysdig scan results
-        uses: actions/upload-artifact@v4
+        id: scan-vote
+        uses: sysdiglabs/scan-action@v4
         with:
-          name: sysdig-scan-reports
-          path: |
-            vote-scan.json
-            worker-scan.json
-            result-scan.json
+          image-tag: vote-app:latest
+          sysdig-secure-token: ${{ secrets.SYSDIG_SECURE_TOKEN }}
+          stop-on-failed-policy-eval: true
+          stop-on-processing-error: true
+
+      - name: Upload vote SARIF
+        if: success() || failure()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ github.workspace }}/sarif-vote.json
+
+      #4 Scan worker image
+      - name: Scan worker image
+        id: scan-worker
+        uses: sysdiglabs/scan-action@v4
+        with:
+          image-tag: worker-app:latest
+          sysdig-secure-token: ${{ secrets.SYSDIG_SECURE_TOKEN }}
+          stop-on-failed-policy-eval: true
+          stop-on-processing-error: true
+
+      - name: Upload worker SARIF
+        if: success() || failure()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ github.workspace }}/sarif-worker.json
+
+      #5 Scan result image
+      - name: Scan result image
+        id: scan-result
+        uses: sysdiglabs/scan-action@v4
+        with:
+          image-tag: result-app:latest
+          sysdig-secure-token: ${{ secrets.SYSDIG_SECURE_TOKEN }}
+          stop-on-failed-policy-eval: true
+          stop-on-processing-error: true
+
+      - name: Upload result SARIF
+        if: success() || failure()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ github.workspace }}/sarif-result.json
