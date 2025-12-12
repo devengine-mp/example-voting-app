@@ -22,9 +22,13 @@ jobs:
       ############################################################
       - name: Download Sysdig CLI Scanner
         run: |
-          curl -sLo sysdig-cli-scanner \
-            https://download.sysdig.com/scanner/sysdig-cli-scanner/latest/sysdig-cli-scanner-linux-amd64
+          curl -L \
+            -H "User-Agent: Sysdig-GitHub-Actions" \
+            -o sysdig-cli-scanner \
+            https://download.sysdig.com/scanner/sysdig-cli-scanner/latest/release/sysdig-cli-scanner-linux-amd64
+
           chmod +x sysdig-cli-scanner
+
 
       - name: Verify Sysdig API token exists
         run: |
