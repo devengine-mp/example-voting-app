@@ -17,18 +17,15 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+
       ############################################################
-      # Authenticate Sysdig CLI Scanner
+      # Download & install Sysdig CLI Scanner (reliable method)
       ############################################################
+      
       - name: Download Sysdig CLI Scanner
         run: |
-          curl -L \
-            -H "User-Agent: Sysdig-GitHub-Actions" \
-            -o sysdig-cli-scanner \
-            https://download.sysdig.com/scanner/sysdig-cli-scanner/latest/release/sysdig-cli-scanner-linux-amd64
-
+          curl -LO "https://download.sysdig.com/scanning/bin/sysdig-cli-scanner/$(curl -L -s https://download.sysdig.com/scanning/sysdig-cli-scanner/latest_version.txt)/linux/amd64/sysdig-cli-scanner"
           chmod +x sysdig-cli-scanner
-
 
       - name: Verify Sysdig API token exists
         run: |
